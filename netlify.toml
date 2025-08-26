@@ -1,0 +1,17 @@
+# Netlify configuration
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# Allow the page to be embedded in Notion iframes
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = ""
+    Content-Security-Policy = "frame-ancestors https://www.notion.so https://*.notion.site https://notion.so"
+
+# Optional: set proper security/CORS for the functions if needed
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"

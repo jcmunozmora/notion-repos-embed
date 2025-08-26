@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Repositories | Juan Carlos Muñoz-Mora</title>
+  <style>
+    :root{
+      --bg:#0b1020; --ink:#f7fafc; --muted:#b0bdd6; --accent:#6ee7b7;
+      --border:rgba(255,255,255,0.08); --shadow:0 8px 24px rgba(0,0,0,0.25);
+      --radius:16px;
+    }
+    body{margin:0;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu; 
+      background: radial-gradient(1200px 800px at 20% -10%, rgba(96,165,250,0.25), transparent 60%),
+                  radial-gradient(900px 600px at 120% 10%, rgba(110,231,183,0.22), transparent 60%),
+                  var(--bg);color:var(--ink);line-height:1.55;}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 20px;}
+    header{display:flex;gap:16px;margin-bottom:16px;}
+    h1{font-size:clamp(24px,3vw,34px);margin:0;font-weight:800}
+    .subtitle{color:var(--muted);font-size:14px}
+    .controls{display:grid;grid-template-columns:1.2fr .8fr .8fr;gap:12px;margin:18px 0 28px;}
+    .control{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:10px;padding:10px 12px;box-shadow:var(--shadow)}
+    .control input,.control select{width:100%;background:transparent;border:none;outline:none;color:var(--ink);font-size:14px}
+    .clear{cursor:pointer;border:none;background:transparent;color:var(--muted);padding:4px 6px;border-radius:8px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;min-height:120px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+      border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;min-height:170px}
+    .repo-name{font-weight:700;font-size:16px;margin:0}
+    .repo-name a{color:var(--ink);text-decoration:none}
+    .repo-name a:hover{text-decoration:underline}
+    .desc{color:var(--muted);font-size:14px;min-height:40px}
+    .badges{display:flex;flex-wrap:wrap;gap:8px}
+    .badge{border-radius:999px;padding:6px 10px;font-size:12px;border:1px solid var(--border);color:var(--muted)}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px}
+    .link{font-weight:600;text-decoration:none;color:var(--accent)}
+    .loading{display:flex;align-items:center;gap:10px;color:var(--muted);padding:8px 0 18px}
+    .spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:var(--ink);animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    footer{margin:26px 0 10px;color:var(--muted);font-size:12px;text-align:center}
+    @media (max-width:720px){.controls{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>repositories</h1>
+        <div class="subtitle">Here you can find replication files and other public code. Data pulls live from <a class="link" href="https://github.com/jcmunozmora" target="_blank" rel="noopener">GitHub</a>.</div>
+      </div>
+    </header>
+
+    <section class="controls" aria-label="controls">
+      <label class="control" title="Search by name or description">
+        <input id="search" type="search" placeholder="Search repositories…" autocomplete="off"/>
+        <button class="clear" id="clearBtn" aria-label="Clear search">✕</button>
+      </label>
+      <label class="control" title="Filter by language">
+        <select id="lang"><option value="">All languages</option></select>
+      </label>
+      <label class="control" title="Sort repositories">
+        <select id="sort">
+          <option value="updated">Sort: Recently updated</option>
+          <option value="stars">Sort: Most stars</option>
+          <option value="name">Sort: Name (A→Z)</option>
+        </select>
+      </label>
+    </section>
+
+    <div class="loading" id="loading"><span class="spinner"></span><span>Loading repositories…</span></div>
+    <section id="grid" class="grid" aria-live="polite"></section>
+    <footer>© <span id="year"></span> Juan Carlos Muñoz‑Mora · Built for Notion embed</footer>
+  </div>
+
+<script>
+(function(){
+  const GRID = document.getElementById('grid');
+  const SEARCH = document.getElementById('search');
+  const CLEAR = document.getElementById('clearBtn');
+  const LANG   = document.getElementById('lang');
+  const SORT   = document.getElementById('sort');
+  const LOADING = document.getElementById('loading');
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  const fmtDate = s => new Date(s).toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'});
+  const fmtNum = n => Intl.NumberFormat().format(n);
+
+  function render(repos){
+    GRID.innerHTML = '';
+    if(repos.length === 0){ GRID.innerHTML = '<div class="card">No repositories found.</div>'; return; }
+    const frag = document.createDocumentFragment();
+    repos.forEach(r => {
+      const card = document.createElement('article');
+      card.className = 'card';
+      card.innerHTML = `
+        <h3 class="repo-name"><a href="${r.html_url}" target="_blank" rel="noopener">${r.name}</a></h3>
+        <p class="desc">${(r.description || 'No description').replace(/</g,'&lt;')}</p>
+        <div class="badges">
+          ${r.language ? `<span class="badge">${r.language}</span>` : ''}
+          ${r.license && r.license.spdx_id ? `<span class="badge">${r.license.spdx_id}</span>` : ''}
+          ${r.archived ? `<span class="badge">archived</span>` : ''}
+          <span class="badge">★ ${fmtNum(r.stargazers_count)}</span>
+        </div>
+        <div class="row">
+          <span>Updated: ${fmtDate(r.updated_at)}</span>
+          <a class="link" href="${r.html_url}" target="_blank" rel="noopener">Open →</a>
+        </div>`;
+      frag.appendChild(card);
+    });
+    GRID.appendChild(frag);
+  }
+
+  function uniqueLanguages(repos){
+    const set = new Set(repos.map(r => r.language).filter(Boolean));
+    return Array.from(set).sort((a,b)=>a.localeCompare(b));
+  }
+
+  function applyFilters(all){
+    const term = SEARCH.value.trim().toLowerCase().replace(/[+]/g,'');
+    const lang = LANG.value;
+    let out = all.slice();
+    if(term){
+      out = out.filter(r => (r.name && r.name.toLowerCase().includes(term)) ||
+                            (r.description && r.description.toLowerCase().includes(term)));
+    }
+    if(lang){ out = out.filter(r => r.language === lang); }
+    switch(SORT.value){
+      case 'stars': out.sort((a,b)=> b.stargazers_count - a.stargazers_count); break;
+      case 'name':  out.sort((a,b)=> a.name.localeCompare(b.name)); break;
+      default:      out.sort((a,b)=> new Date(b.updated_at) - new Date(a.updated_at));
+    }
+    return out;
+  }
+
+  function debounce(fn,ms=250){ let t; return (...a)=>{clearTimeout(t); t=setTimeout(()=>fn(...a),ms);}}
+
+  (async function init(){
+    try{
+      LOADING.style.display='flex';
+      const res = await fetch('/.netlify/functions/repos');
+      if(!res.ok) throw new Error('Fetch error ' + res.status);
+      const data = await res.json();
+      const langs = uniqueLanguages(data);
+      LANG.innerHTML = '<option value=\"\">All languages</option>' + langs.map(l=>`<option>${l}</option>`).join('');
+      const rerender = ()=> render(applyFilters(data));
+      SEARCH.addEventListener('input', debounce(rerender,150));
+      CLEAR.addEventListener('click', ()=>{SEARCH.value=''; rerender();});
+      LANG.addEventListener('change', rerender);
+      SORT.addEventListener('change', rerender);
+      rerender();
+    }catch(err){
+      GRID.innerHTML = `<div class="card">Failed to load GitHub data. <small style="color:#b0bdd6"> ${err.message}</small></div>`;
+      console.error(err);
+    }finally{
+      LOADING.style.display='none';
+    }
+  })();
+})();  
+</script>
+</body>
+</html>
